@@ -1,0 +1,448 @@
+// HL.jjt Copyright Sophie Quigley 2021
+// This file can be only used during the Fall 2021 academic semester 
+// in assignments for the course CPS710 at Ryerson University.
+// Other uses and distributions are prohibited.  
+// In particular this file or any others derived from it 
+// may not be posted in any source code repositories.
+
+options {
+  IGNORE_CASE=true;
+  MULTI=true;	// This will generate one AST class for each non-suppressed non-terminal
+  JJTREE_OUTPUT_DIRECTORY="AST";  // This will put all your AST classes in the AST directory
+  VISITOR=true;	// Creates visitor infrastructure
+  VISITOR_EXCEPTION="Exception";  // Infrstructure for exceptions
+}
+
+PARSER_BEGIN(HL)
+
+public class HL {
+}
+
+PARSER_END(HL)
+
+// ===========================================================================
+//                                 S C A N N E R   
+// ===========================================================================
+
+TOKEN_MGR_DECLS : 
+{
+}
+
+SKIP : {
+  " "     
+  | "\t"    
+  | "\n"    
+  | "\r"    
+  }
+
+TOKEN : 
+{
+  < ADD:	"+">
+|	< ASSIGN:	"=">
+|	< COMMA:	",">
+|	< DIV:	"/">
+|	< EQ:	"==">
+|	< GE:	">=">
+|	< GT:	">">
+|	< LE:	"<=">
+|	< LPAREN:	"(">
+|	< LSQUARE:	"[">
+|	< LT:	"<">
+| < NE: "<>">
+|	< PROD:	"*">
+|	< RPAREN:	")">
+|	< RSQUARE:	"]">
+|	< SEMICOL:	";">
+|	< SUB:	"-">
+}
+TOKEN : 
+{
+  < AND:"AND">
+| < BY:"BY">
+|	< DO:"DO">
+|	< ELIF:"ELIF">
+|	< ELSE:"ELSE">
+|	< END:"END">
+|	< FI:"FI">
+|	< FOR:"FOR">
+|	< FOREACH:"FOREACH">
+| < FROM:"FROM">
+|	< FUN:"FUN">
+|	< IF:"IF">
+| < IN:"IN">
+| < ISFUN:"ISFUN">
+| < ISINT:"ISINT">
+| < ISPOL:"ISPOL">
+| < NOT:"NOT">
+|	< NUF:"NUF">
+|	< OD:"OD">
+| < OR:"OR">
+|	< PRINT:"PRINT">
+|	< PRINTLN:"PRINTLN">
+|	< RETURN:"RETURN">
+|	< THEN:"THEN">
+| < TO:"TO">
+| < VAR:"VAR">
+|	< WHILE:"WHILE">
+| < X:"X">
+}
+
+TOKEN : 
+{
+	< #DIGIT:	["0"-"9"]>
+|	< #LETTER:	["a"-"z","A"-"Z"]>
+| < #LETTERNOTX: ["a"-"w","y","z","A"-"W","Y","Z"]>
+| < BOOLEAN: ("TRUE"|"FALSE")>
+|	< INTEGER:	(<DIGIT>)+ >
+|	< IDENTIFIER:	<LETTERNOTX>(<LETTER>|<DIGIT>)* >
+| < STRING: "\"" (~["\""])* "\"" >
+}
+
+
+// ----------------------  COMMENTS     ----------------------------
+
+SPECIAL_TOKEN : {
+        <COMMENT_SINGLE: "//" (~["\n","\r"])* ("\n"|"\r"|"\r\n")>
+    }
+
+// ===========================================================================
+//                                 P A R S E R   
+// ===========================================================================
+
+// ------------------------------- BEGINNING -----------------------------------
+
+SimpleNode start	()  #void :
+{}
+{  S()  { return (SimpleNode) (jjtree.popNode()); }
+| < EOF > {throw new ParseException("End of File.");}
+}
+
+void S() throws ParseException	#void		 :
+{}
+{	statement_ll() ";"
+| LOOKAHEAD(2) assignment() ";"
+| expression() ";"
+}
+
+// ------------------------------- STATEMENTS -----------------------------------
+
+void statement() #void	 :
+{}
+{	statement_ll() ";" 
+| LOOKAHEAD(2) assignment() ";"
+| fn_call() ";"
+}
+
+void statement_ll()	#void :
+{}
+{	var_decl()
+| fn_decl() 
+| if_stat() 
+| for_stat() 
+| foreach_stat() 
+| while_stat()
+| return_stat() 
+| print_stat() 
+| println_stat()
+}
+
+// ------------------------------- DECLARATIONS ------------------------------
+
+void var_decl()		 :
+{}
+{	<VAR> identifier() ("," identifier())*
+}
+
+void fn_decl()		 :
+{}
+{	<FUN> identifier() "(" param_decls() ")" body() <NUF>
+}
+
+void param_decls()	 :
+{}
+{	param_decl() ("," param_decl())*
+| {}
+}
+
+void param_decl() #void :
+{}
+{	<VAR> identifier() #varparam
+| <FUN> identifier() #funparam
+}
+
+void body()			 :
+{}
+{	(statement())*
+}
+
+// ------------------------------- ASSIGNMENT, IF, LOOPS ------------------------------
+
+void assignment()		 :
+{}
+{   identifier() "=" expression()
+}
+
+void if_stat() :
+{}
+{	<IF> condition() <THEN> clause() else_clause() <FI>
+}
+
+void else_clause	() #void:
+{}
+{	 (<ELIF> condition() <THEN> clause() else_clause()) #if_stat
+|  <ELSE> clause()
+|  {} #NULL
+}
+
+void clause()		 :
+{}
+{	(statement())+
+}
+
+void for_stat()		 :
+{}
+{	<FOR> identifier() <FROM> expression() <TO> expression() by() <DO> body() <OD>
+}
+
+void by() #void:
+{}
+{  <BY> expression()
+|  one()
+}
+
+void foreach_stat()	 :
+{}
+{	<FOREACH> identifier() <IN> expression() <DO> body() <OD>
+}
+
+void while_stat()		 :
+{}
+{	<WHILE> condition() <DO> body() <OD>
+}
+
+// ------------------------------- FN CALLS, RETURN, PRINT -----------------------------
+
+void fn_call()		 :
+{}
+{	identifier() "(" parameters() ")"
+}
+
+void parameters()	 :
+{}
+{	expression() ("," expression())*
+|  {}
+}
+
+void return_stat()	 :
+{}
+{	<RETURN> return_value()
+}
+
+void return_value()	#void :
+{}
+{	expression()
+| bool()
+| {} #NULL
+}
+
+
+void print_stat()		 :
+{}
+{	<PRINT> print_param() ("," print_param())*
+}
+
+void println_stat()	 :
+{}
+{	<PRINTLN> (print_param() ("," print_param())*)?
+}
+
+void print_param() #void	 :
+{}
+{	expression() 
+| string()
+| bool()
+}
+
+// ------------------------------- CONDITIONS -----------------------------
+
+void condition() #void		 :
+{}
+{	and_clause() more_ored_clauses()
+}
+
+void more_ored_clauses() #void :
+{}
+{ (<OR> and_clause()) #or(2) more_ored_clauses()
+| {}
+}
+
+void and_clause()	#void	 :
+{}
+{	not_clause() more_anded_clauses()
+}
+
+void more_anded_clauses() #void :
+{}
+{ (<AND> not_clause()) #and(2) more_anded_clauses()
+| {}
+}
+
+void not_clause()	#void	 :
+{}
+{	<NOT> not_clause()  #not 
+| LOOKAHEAD(expression() comparator()) comparison() 
+| LOOKAHEAD(is()) is() 
+| "(" condition() ")" 
+| fn_call()
+| bool()
+}
+
+void comparison()		 :
+{}
+{	expression() comparator() expression()
+}
+
+void comparator()	#void :
+{}
+{	<LT>  #LT  
+| <LE>  #LE
+| <GT>  #GT 
+| <GE>  #GE 
+| <EQ>  #EQ 
+| <NE>  #NE 
+}
+
+void is()	#void		 :
+{}
+{	expression() istype()
+}
+
+void istype() #void :
+{}
+{
+  <ISINT>  #isint(1) 
+| <ISPOL>  #ispol(1) 
+| <ISFUN>  #isfun(1)
+}
+
+// ------------------------------- EXPRESSIONS -----------------------------
+
+void expression()	#void :
+{}
+{ (minus() (sum_term())*)        #sum(>1)
+| ("+" product() (sum_term())*)  #sum(>1)
+| (product() (sum_term())*)      #sum(>1)
+}
+
+void plus()	 :
+{}
+{ "+" product()
+}
+
+void minus()	 :
+{}
+{ "-" product()
+}
+
+void sum_term()	#void :
+{}
+{ plus()
+| minus()
+}
+
+void product() #void	 :
+{}
+{	(term() (prod_term())*)  #product(>1)
+}
+
+void prod_term()	#void :
+{}
+{ "*" term() #times
+| "/" term() #div
+}
+
+
+// ------------------------------- TERMS -----------------------------------
+
+void term()	#void		 :
+{}
+{ prefix() optional_suffix() 
+}
+
+void prefix() #void :
+{}
+{	"(" expression() ")" 
+| LOOKAHEAD(2) fn_call() 
+| identifier() 
+| polyn() 
+}
+
+void optional_suffix() #void  :
+{}
+{ ("[" expression() "]") #eval(2) 
+| {}
+}
+
+// ------------------------------- POLYN -----------------------------------
+
+void polyn() 		 :
+{}
+{ integer() optional_powerofx()
+| <X> one() power()
+}
+
+void optional_powerofx() #void :
+{}
+{ <X> power()
+| zero()
+}
+
+void power() #void :
+{}
+{ integer()
+| one() 
+}
+
+void one() #void :
+{ASTinteger n;}
+{
+  {
+  n = new ASTinteger(JJTINTEGER); 
+  n.jjtSetValue(new Integer(1));
+  jjtree.pushNode(n);
+  }
+}
+
+void zero() #void :
+{ASTinteger n;}
+{
+  {
+  n = new ASTinteger(JJTINTEGER); 
+  n.jjtSetValue(new Integer(0));
+  jjtree.pushNode(n);
+  }
+}
+
+// ------------------------------- NODIFIED TOKENS ------------------------
+
+void identifier () :
+{Token t;}
+{  t=<IDENTIFIER>  {jjtThis.jjtSetValue(t.getValue());}
+}
+
+void integer () :
+{Token t;}
+{  t=<INTEGER>  {jjtThis.jjtSetValue(t.getValue());}
+}
+
+void string () :
+{Token t;}
+{  t=<STRING>  {jjtThis.jjtSetValue(t.getValue());}
+}
+
+void bool () :
+{Token t;}
+{  t=<BOOLEAN>  {jjtThis.jjtSetValue(t.getValue());} 
+}
+
+
