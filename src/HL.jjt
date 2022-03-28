@@ -1,9 +1,3 @@
-// HL.jjt Copyright Sophie Quigley 2021
-// This file can be only used during the Fall 2021 academic semester 
-// in assignments for the course CPS710 at Ryerson University.
-// Other uses and distributions are prohibited.  
-// In particular this file or any others derived from it 
-// may not be posted in any source code repositories.
 
 options {
   IGNORE_CASE=true;
